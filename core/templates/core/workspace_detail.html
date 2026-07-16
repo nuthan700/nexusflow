@@ -1,0 +1,18 @@
+{% extends "core/base.html" %}
+{% block title %}{{ workspace.name }}{% endblock %}
+{% block content %}
+<div class="container">
+  <h2>{{ workspace.name }}</h2>
+  <p class="muted">Invite code: <strong>{{ workspace.invite_code }}</strong> &mdash; share it so teammates can join.</p>
+  <div class="card">
+    <h3>Create the first channel</h3>
+    <form method="post" action="{% url 'channel_create' workspace.slug %}">
+      {% csrf_token %}
+      <input type="text" name="name" placeholder="e.g. general" required>
+      <label><input type="checkbox" name="is_private"> Private channel</label>
+      <br><br>
+      <button type="submit">Create channel</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

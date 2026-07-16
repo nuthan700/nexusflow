@@ -1,0 +1,172 @@
+{% extends "core/base.html" %}
+{% block title %}#{{ channel.name }} · {{ workspace.name }}{% endblock %}
+{% block content %}
+<div style="display:flex; height:calc(100vh - 49px)">
+
+  <div style="width:220px; border-right:1px solid var(--border); background:var(--bg-1); padding:16px 10px; overflow-y:auto">
+    <div class="muted" style="padding:0 8px 6px">{{ workspace.name }}</div>
+    <div style="font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-2); padding:10px 8px 4px">Channels</div>
+    {% for c in all_channels %}
+      <a href="{% url 'channel_detail' workspace.slug c.slug %}"
+         style="display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:6px; font-size:14px;
+                {% if c.id == channel.id %}background:var(--bg-2); color:var(--amber);{% else %}color:var(--text-1);{% endif %}">
+        {% if c.is_private %}🔒{% else %}#{% endif %} {{ c.name }}
+      </a>
+    {% endfor %}
+    <form method="post" action="{% url 'channel_create' workspace.slug %}" style="padding:10px 8px">
+      <input type="text" name="name" placeholder="new channel" required style="margin-bottom:6px">
+      <label class="muted"><input type="checkbox" name="is_private"> private</label>
+      {% csrf_token %}
+      <button type="submit" class="secondary" style="width:100%; margin-top:6px">+ Add channel</button>
+    </form>
+  </div>
+
+  <div style="flex:1; display:flex; flex-direction:column; min-width:0">
+    <div style="padding:12px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px">
+      <strong>{% if channel.is_private %}🔒{% else %}#{% endif %} {{ channel.name }}</strong>
+    </div>
+
+    <div id="message-list" style="flex:1; overflow-y:auto; padding:16px 18px; display:flex; flex-direction:column; gap:12px">
+      {% for m in history %}
+        <div class="msg-row" data-id="{{ m.id }}">
+          <div style="display:flex; gap:10px; align-items:baseline">
+            <strong>{{ m.user.username }}</strong>
+            <span class="muted" style="font-size:11px">{{ m.created_at|date:"M d, g:i A" }}</span>
+          </div>
+          <div class="msg-content">{{ m.content }}</div>
+          <div class="msg-reactions" style="display:flex; gap:6px; margin-top:4px">
+            {% for emoji, count in m.reactions.items %}
+              <span class="reaction-pill" data-id="{{ m.id }}" data-emoji="{{ emoji }}">{{ emoji }} {{ count }}</span>
+            {% endfor %}
+          </div>
+          <div class="emoji-bar muted" style="font-size:12px">
+            <span data-e="👍">👍</span><span data-e="🎉">🎉</span><span data-e="❤️">❤️</span><span data-e="😂">😂</span><span data-e="🚀">🚀</span>
+          </div>
+        </div>
+
+      {% endfor %}
+    </div>
+
+    <div id="typing-indicator" class="muted" style="padding:0 18px; height:18px; font-size:12px"></div>
+
+    <div style="padding:12px 18px; border-top:1px solid var(--border); display:flex; gap:8px">
+      <input type="text" id="chat-input" placeholder="Message #{{ channel.name }}" autocomplete="off">
+      <button id="send-btn">Send</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .msg-row { max-width: 640px; }
+  .msg-content { font-size: 14px; line-height: 1.5; }
+  .reaction-pill {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: 999px;
+    padding: 2px 8px; font-size: 12px; cursor: pointer;
+  }
+  .emoji-bar span { cursor: pointer; margin-right: 4px; }
+</style>
+
+<script>
+const CHANNEL_ID = {{ channel.id }};
+const USERNAME = "{{ user.username }}";
+const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
+const socket = new WebSocket(`${wsScheme}://${window.location.host}/ws/chat/${CHANNEL_ID}/`);
+
+const listEl = document.getElementById("message-list");
+const inputEl = document.getElementById("chat-input");
+const typingEl = document.getElementById("typing-indicator");
+let typingTimeout = null;
+
+function scrollToBottom() {
+  listEl.scrollTop = listEl.scrollHeight;
+}
+
+function renderMessage(m) {
+  const row = document.createElement("div");
+  row.className = "msg-row";
+  row.dataset.id = m.id;
+  row.innerHTML = `
+    <div style="display:flex; gap:10px; align-items:baseline">
+      <strong>${m.user}</strong>
+      <span class="muted" style="font-size:11px">${m.created_at}</span>
+    </div>
+    <div class="msg-content"></div>
+    <div class="msg-reactions" style="display:flex; gap:6px; margin-top:4px"></div>
+    <div class="emoji-bar muted" style="font-size:12px">
+      <span data-e="👍">👍</span><span data-e="🎉">🎉</span><span data-e="❤️">❤️</span><span data-e="😂">😂</span><span data-e="🚀">🚀</span>
+    </div>
+  `;
+  row.querySelector(".msg-content").textContent = m.content;
+  listEl.appendChild(row);
+  renderReactions(m.id, m.reactions || {});
+  wireReactionButtons(row);
+  scrollToBottom();
+}
+
+function renderReactions(messageId, reactions) {
+  const row = document.querySelector(`.msg-row[data-id="${messageId}"] .msg-reactions`);
+  if (!row) return;
+  row.innerHTML = "";
+  Object.entries(reactions).forEach(([emoji, count]) => {
+    const pill = document.createElement("span");
+    pill.className = "reaction-pill";
+    pill.textContent = `${emoji} ${count}`;
+    pill.onclick = () => sendReaction(messageId, emoji);
+    row.appendChild(pill);
+  });
+}
+
+function wireReactionButtons(row) {
+  row.querySelectorAll(".emoji-bar span").forEach((el) => {
+    el.onclick = () => sendReaction(row.dataset.id, el.dataset.e);
+  });
+}
+
+document.querySelectorAll(".msg-row").forEach(wireReactionButtons);
+document.querySelectorAll(".reaction-pill").forEach((el) => {
+  el.onclick = () => sendReaction(el.dataset.id, el.dataset.emoji);
+});
+
+function sendMessage() {
+  const content = inputEl.value.trim();
+  if (!content) return;
+  socket.send(JSON.stringify({ type: "message", content }));
+  inputEl.value = "";
+  socket.send(JSON.stringify({ type: "typing", is_typing: false }));
+}
+
+function sendReaction(messageId, emoji) {
+  socket.send(JSON.stringify({ type: "reaction", message_id: parseInt(messageId), emoji }));
+}
+
+document.getElementById("send-btn").onclick = sendMessage;
+inputEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") sendMessage();
+});
+inputEl.addEventListener("input", () => {
+  socket.send(JSON.stringify({ type: "typing", is_typing: true }));
+  clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(() => {
+    socket.send(JSON.stringify({ type: "typing", is_typing: false }));
+  }, 1500);
+});
+
+socket.onmessage = (e) => {
+  const data = JSON.parse(e.data);
+  if (data.type === "message") {
+    renderMessage(data.message);
+  } else if (data.type === "typing") {
+    if (data.username === USERNAME) return;
+    typingEl.textContent = data.is_typing ? `${data.username} is typing…` : "";
+  } else if (data.type === "presence") {
+    if (data.username === USERNAME) return;
+    typingEl.textContent = `${data.username} is ${data.status}`;
+    setTimeout(() => { if (typingEl.textContent.includes(data.username)) typingEl.textContent = ""; }, 2000);
+  } else if (data.type === "reaction") {
+    renderReactions(data.message_id, data.reactions);
+  }
+};
+
+scrollToBottom();
+</script>
+{% endblock %}

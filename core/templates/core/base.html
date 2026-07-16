@@ -1,0 +1,70 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Nimbus Chat{% endblock %}</title>
+  <style>
+    :root {
+      --bg-0: #0b0f17; --bg-1: #10151f; --bg-2: #161c29;
+      --border: #232b3a; --text-0: #e4e7ee; --text-1: #9aa4b6; --text-2: #5f6b81;
+      --amber: #f2a93b; --teal: #2dd4bf; --rose: #fb7185; --sky: #38bdf8;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg-0); color: var(--text-0); min-height: 100vh; }
+    a { color: var(--amber); text-decoration: none; }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--bg-1);
+    }
+    .brand { font-weight: 600; letter-spacing: 0.02em; }
+    .brand span { color: var(--amber); }
+    .topbar-right { display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--text-1); }
+    .container { max-width: 960px; margin: 0 auto; padding: 40px 20px; }
+    .card {
+      background: var(--bg-1); border: 1px solid var(--border); border-radius: 10px;
+      padding: 20px 22px; margin-bottom: 16px;
+    }
+    input[type=text], input[type=password], input[type=email] {
+      width: 100%; padding: 9px 11px; margin: 6px 0 14px; border-radius: 6px;
+      border: 1px solid var(--border); background: var(--bg-2); color: var(--text-0); font-size: 14px;
+    }
+    button, .btn {
+      background: var(--amber); color: #1a1200; border: none; padding: 9px 16px;
+      border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px;
+    }
+    button.secondary, .btn.secondary { background: var(--bg-2); color: var(--text-0); border: 1px solid var(--border); }
+    .messages-alert { color: var(--rose); font-size: 13px; margin-bottom: 10px; }
+    label { font-size: 13px; color: var(--text-1); }
+    h1, h2, h3 { font-weight: 600; }
+    .muted { color: var(--text-1); font-size: 13px; }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">nimbus<span>.chat</span></div>
+    <div class="topbar-right">
+      {% if user.is_authenticated %}
+        <span>{{ user.username }}</span>
+        <a href="{% url 'workspace_list' %}">workspaces</a>
+        <form method="post" action="{% url 'logout' %}" style="display:inline">
+          {% csrf_token %}
+          <button type="submit" class="secondary">Log out</button>
+        </form>
+      {% else %}
+        <a href="{% url 'login' %}">Log in</a>
+        <a href="{% url 'signup' %}">Sign up</a>
+      {% endif %}
+    </div>
+  </div>
+  {% if messages %}
+    <div class="container" style="padding-bottom:0">
+      {% for message in messages %}<div class="messages-alert">{{ message }}</div>{% endfor %}
+    </div>
+  {% endif %}
+  {% block content %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,42 @@
+{% extends "core/base.html" %}
+{% block title %}Your workspaces{% endblock %}
+{% block content %}
+<div class="container">
+  <h2>Your workspaces</h2>
+
+  {% if memberships %}
+    <div class="card">
+      {% for m in memberships %}
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border)">
+          <div>
+            <strong>{{ m.workspace.name }}</strong>
+            <span class="muted">&middot; {{ m.role }}</span>
+          </div>
+          <a class="btn" href="{% url 'workspace_detail' m.workspace.slug %}">Open</a>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">You're not part of any workspace yet — create one or join with an invite code.</p>
+  {% endif %}
+
+  <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:20px">
+    <div class="card" style="flex:1; min-width:280px">
+      <h3>Create a workspace</h3>
+      <form method="post">
+        {% csrf_token %}
+        {{ create_form.as_p }}
+        <button type="submit" name="create" value="1">Create workspace</button>
+      </form>
+    </div>
+    <div class="card" style="flex:1; min-width:280px">
+      <h3>Join with an invite code</h3>
+      <form method="post">
+        {% csrf_token %}
+        {{ join_form.as_p }}
+        <button type="submit" name="join" value="1">Join workspace</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
